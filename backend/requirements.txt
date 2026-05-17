@@ -1,0 +1,48 @@
+# --- Web Framework ---
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+
+# --- Validation ---
+pydantic==2.7.1
+pydantic-settings==2.2.1
+
+# --- Database ---
+motor==3.4.0          # async MongoDB driver
+pymongo==4.7.2
+beanie==1.26.0        # async ODM for MongoDB
+
+# --- Vector DB ---
+qdrant-client==1.9.1
+
+# --- AI / Embeddings ---
+openai==1.30.1
+sentence-transformers==2.7.0
+torch==2.3.0
+
+# --- PDF Parsing ---
+pdfplumber==0.11.1
+pymupdf==1.24.3       # fitz — fast PDF extraction
+
+# --- NLP ---
+spacy==3.7.4
+
+# --- Queue / Cache ---
+redis==5.0.4
+dramatiq[redis]==1.16.0
+
+# --- Auth ---
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# --- Utils ---
+python-dotenv==1.0.1
+httpx==0.27.0
+aiofiles==23.2.1
+loguru==0.7.2
+
+# --- Dev ---
+pytest==8.2.0
+pytest-asyncio==0.23.7
+black==24.4.2
+ruff==0.4.4
