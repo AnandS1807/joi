@@ -1,16 +1,15 @@
 from datetime import datetime, timedelta
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import settings
 from app.models.documents import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
-
+security = HTTPBearer()
 
 # ─── Password ─────────────────────────────────────────────────────────────────
 def hash_password(password: str) -> str:
@@ -42,15 +41,20 @@ def decode_token(token: str) -> dict:
         )
 
 
-# ─── Dependency ───────────────────────────────────────────────────────────────
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+# ─── Dependency ────────────────────────────────────────────────────────────────────
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+    """Extract token from Authorization header and validate it."""
+    token = credentials.credentials   # <-- get the token string
     payload = decode_token(token)
     user_id: str = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    user = await User.find_one(User.id == user_id)
+    # Beanie uses _id under the hood; try get() first, then fallback to id field
+    user = await User.get(user_id)
+    if not user:
+        user = await User.find_one({"id": user_id})
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
-
     return user
+

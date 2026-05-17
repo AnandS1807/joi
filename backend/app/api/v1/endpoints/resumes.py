@@ -61,16 +61,16 @@ async def list_resumes(current_user: User = Depends(get_current_user)):
 
 @router.get("/{resume_id}", response_model=ResumeOut)
 async def get_resume(resume_id: str, current_user: User = Depends(get_current_user)):
-    resume = await Resume.find_one(Resume.id == resume_id, Resume.user_id == current_user.id)
-    if not resume:
+    resume = await Resume.get(resume_id)
+    if not resume or resume.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Resume not found")
     return ResumeOut(**resume.model_dump())
 
 
 @router.delete("/{resume_id}", response_model=MessageResponse)
 async def delete_resume(resume_id: str, current_user: User = Depends(get_current_user)):
-    resume = await Resume.find_one(Resume.id == resume_id, Resume.user_id == current_user.id)
-    if not resume:
+    resume = await Resume.get(resume_id)
+    if not resume or resume.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Resume not found")
 
     # Remove file from disk
@@ -92,7 +92,7 @@ async def process_resume_task(resume_id: str):
         await ResumeService.parse_and_embed(resume_id)
     except Exception as e:
         logger.error(f"Resume processing failed: {resume_id} — {e}")
-        resume = await Resume.find_one(Resume.id == resume_id)
+        resume = await Resume.get(resume_id)
         if resume:
             resume.status = "failed"
             resume.error = str(e)

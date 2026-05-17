@@ -110,6 +110,10 @@ class AnalysisResult(Document):
     # Section scores
     section_scores: dict[str, float] = {}      # e.g. {"skills": 80, "experience": 65}
 
+    # Highlighted spans from resume for UI rendering
+    # Each item: {"type": "matched"|"irrelevant", "text": str, "start": int, "end": int, "score": float}
+    highlights: list[dict] = []
+
     # LLM output
     suggestions: list[str] = []
     improvement_tips: list[str] = []

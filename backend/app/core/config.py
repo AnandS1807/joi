@@ -24,8 +24,11 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # OpenAI
-    OPENAI_API_KEY: str = ""
+    # LLM — Ollama (local) or OpenAI
+    LLM_PROVIDER: str = "ollama"          # "ollama" | "openai"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "nomic-embed-text"        # change to whichever model you pull
+    OPENAI_API_KEY: str = ""              # only needed if LLM_PROVIDER=openai
     OPENAI_MODEL: str = "gpt-4o-mini"
 
     # Embeddings

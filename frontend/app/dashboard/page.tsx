@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { analysisApi, jobsApi, resumesApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 
@@ -25,7 +26,9 @@ type AnalysisItem = {
   resume_id: string;
   job_id: string;
   status: string;
-  overall_score?: number;
+  scores?: {
+    overall_score?: number;
+  } | null;
   created_at?: string;
 };
 
@@ -43,9 +46,7 @@ export default function DashboardPage() {
   const [analyses, setAnalyses] = useState<AnalysisItem[]>([]);
 
   const [file, setFile] = useState<File | null>(null);
-  const [jobTitle, setJobTitle] = useState("");
-  const [company, setCompany] = useState("");
-  const [jobText, setJobText] = useState("");
+  const [jobFile, setJobFile] = useState<File | null>(null);
   const [selectedResume, setSelectedResume] = useState("");
   const [selectedJob, setSelectedJob] = useState("");
 
@@ -113,26 +114,20 @@ export default function DashboardPage() {
 
   async function onCreateJob(e: React.FormEvent) {
     e.preventDefault();
-    if (!jobText.trim()) {
-      setError("Paste a job description before saving");
+    if (!jobFile) {
+      setError("Please choose a JD file first");
       return;
     }
 
     setError("");
     setMessage("");
     try {
-      await jobsApi.create({
-        title: jobTitle || undefined,
-        company: company || undefined,
-        raw_text: jobText,
-      });
-      setJobTitle("");
-      setCompany("");
-      setJobText("");
-      setMessage("Job description saved");
+      await jobsApi.upload(jobFile);
+      setJobFile(null);
+      setMessage("Job description uploaded");
       await loadAll();
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to save job");
+      setError(err?.response?.data?.detail || "Failed to upload job file");
     }
   }
 
@@ -210,34 +205,16 @@ export default function DashboardPage() {
           <h2>Job Descriptions</h2>
           <form className="stack" onSubmit={onCreateJob}>
             <label>
-              Job Title
+              Upload JD File (PDF or TXT)
               <input
-                onChange={(e) => setJobTitle(e.target.value)}
-                placeholder="Backend Engineer"
-                value={jobTitle}
+                accept=".pdf,.txt"
+                onChange={(e) => setJobFile(e.target.files?.[0] || null)}
+                type="file"
               />
             </label>
 
-            <label>
-              Company
-              <input
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder="Acme Inc"
-                value={company}
-              />
-            </label>
-
-            <label>
-              Raw Job Description
-              <textarea
-                onChange={(e) => setJobText(e.target.value)}
-                placeholder="Paste the complete JD text here"
-                value={jobText}
-              />
-            </label>
-
-            <button className="btn-secondary" type="submit">
-              Save Job Description
+            <button className="btn-primary" type="submit">
+              Upload Job Description
             </button>
           </form>
 
@@ -288,10 +265,18 @@ export default function DashboardPage() {
               <div className="list-item" key={a.id}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
                   <strong>{a.id}</strong>
-                  <span className="badge">{a.status}</span>
+                  <span className="badge">
+                    {a.status}
+                    {a.scores?.overall_score !== undefined ? ` • ${a.scores.overall_score}` : ""}
+                  </span>
                 </div>
                 <div className="muted" style={{ marginTop: 6 }}>
                   Resume: {a.resume_id} | Job: {a.job_id}
+                </div>
+                <div className="row" style={{ marginTop: 10 }}>
+                  <Link className="btn-ghost" href={`/analysis/${a.id}`}>
+                    View Analysis
+                  </Link>
                 </div>
               </div>
             ))}

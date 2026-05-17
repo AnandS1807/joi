@@ -36,21 +36,24 @@ async def connect_qdrant() -> None:
         port=settings.QDRANT_PORT,
     )
 
-    # Create collection if it doesn't exist
-    collections = await qdrant_client.get_collections()
-    existing = [c.name for c in collections.collections]
+    try:
+        # Create collection if it doesn't exist
+        collections = await qdrant_client.get_collections()
+        existing = [c.name for c in collections.collections]
 
-    if settings.QDRANT_COLLECTION_NAME not in existing:
-        await qdrant_client.create_collection(
-            collection_name=settings.QDRANT_COLLECTION_NAME,
-            vectors_config=VectorParams(
-                size=settings.EMBEDDING_DIMENSION,
-                distance=Distance.COSINE,
-            ),
-        )
-        logger.info(f"Qdrant collection created → {settings.QDRANT_COLLECTION_NAME}")
-    else:
-        logger.info(f"Qdrant connected → {settings.QDRANT_COLLECTION_NAME}")
+        if settings.QDRANT_COLLECTION_NAME not in existing:
+            await qdrant_client.create_collection(
+                collection_name=settings.QDRANT_COLLECTION_NAME,
+                vectors_config=VectorParams(
+                    size=settings.EMBEDDING_DIMENSION,
+                    distance=Distance.COSINE,
+                ),
+            )
+            logger.info(f"Qdrant collection created → {settings.QDRANT_COLLECTION_NAME}")
+        else:
+            logger.info(f"Qdrant connected → {settings.QDRANT_COLLECTION_NAME}")
+    except Exception as e:
+        logger.warning(f"Qdrant not available: {e}")
 
 
 async def close_qdrant() -> None:
@@ -68,13 +71,17 @@ def get_qdrant() -> AsyncQdrantClient:
 # ─── Redis ────────────────────────────────────────────────────────────────────
 async def connect_redis() -> None:
     global redis_client
-    redis_client = await aioredis.from_url(
-        settings.REDIS_URL,
-        encoding="utf-8",
-        decode_responses=True,
-    )
-    await redis_client.ping()
-    logger.info("Redis connected")
+    try:
+        redis_client = await aioredis.from_url(
+            settings.REDIS_URL,
+            encoding="utf-8",
+            decode_responses=True,
+        )
+        await redis_client.ping()
+        logger.info("Redis connected")
+    except Exception as e:
+        redis_client = None
+        logger.warning(f"Redis not available: {e}")
 
 
 async def close_redis() -> None:

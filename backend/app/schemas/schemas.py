@@ -81,6 +81,14 @@ class ScoreBreakdown(BaseModel):
     section_scores: dict[str, float] = {}
 
 
+class HighlightItem(BaseModel):
+    type: str
+    text: str
+    start: int
+    end: int
+    score: float
+
+
 class AnalysisOut(BaseModel):
     id: str
     resume_id: str
@@ -95,6 +103,7 @@ class AnalysisOut(BaseModel):
     suggestions: list[str] = []
     improvement_tips: list[str] = []
     summary: Optional[str] = None
+    highlights: list[HighlightItem] = []
 
     processing_time_ms: Optional[int] = None
     created_at: datetime

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+import os
+import aiofiles
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, UploadFile, File
 from loguru import logger
 
 from app.auth.utils import get_current_user
@@ -7,6 +9,55 @@ from app.schemas.schemas import JobCreate, JobOut, AnalysisRequest, AnalysisOut,
 
 # ─── Jobs ─────────────────────────────────────────────────────────────────────
 jobs_router = APIRouter(prefix="/jobs", tags=["jobs"])
+@jobs_router.post("/upload", response_model=JobOut, status_code=201)
+async def upload_job_file(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    # Validate
+    filename = file.filename or ""
+    if not (filename.endswith(".pdf") or filename.endswith(".txt")):
+        raise HTTPException(status_code=400, detail="Only PDF or TXT files are supported")
+
+    max_bytes = 10 * 1024 * 1024
+    contents = await file.read()
+    if len(contents) > max_bytes:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+    raw_text = ""
+    if filename.endswith(".txt"):
+        raw_text = contents.decode("utf-8", errors="ignore")
+    else:
+        try:
+            import pdfplumber
+            tmp_dir = os.path.join("uploads", current_user.id)
+            os.makedirs(tmp_dir, exist_ok=True)
+            tmp_path = os.path.join(tmp_dir, filename)
+            async with aiofiles.open(tmp_path, "wb") as f:
+                await f.write(contents)
+            text_parts: list[str] = []
+            with pdfplumber.open(tmp_path) as pdf:
+                for p in pdf.pages:
+                    text_parts.append(p.extract_text() or "")
+            raw_text = "\n\n".join(text_parts).strip()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read PDF: {e}")
+
+    if not raw_text.strip():
+        raise HTTPException(status_code=400, detail="No text could be extracted from the file")
+
+    job = JobDescription(
+        user_id=current_user.id,
+        title=filename,
+        raw_text=raw_text,
+        status="uploaded",
+    )
+    await job.insert()
+
+    background_tasks.add_task(process_job_task, job.id)
+    return JobOut(**job.model_dump())
+
 
 
 @jobs_router.post("/", response_model=JobOut, status_code=201)
@@ -36,11 +87,8 @@ async def list_jobs(current_user: User = Depends(get_current_user)):
 
 @jobs_router.get("/{job_id}", response_model=JobOut)
 async def get_job(job_id: str, current_user: User = Depends(get_current_user)):
-    job = await JobDescription.find_one(
-        JobDescription.id == job_id,
-        JobDescription.user_id == current_user.id,
-    )
-    if not job:
+    job = await JobDescription.get(job_id)
+    if not job or job.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Job not found")
     return JobOut(**job.model_dump())
 
@@ -77,11 +125,8 @@ async def run_analysis(
 
 @analysis_router.get("/{result_id}", response_model=AnalysisOut)
 async def get_analysis(result_id: str, current_user: User = Depends(get_current_user)):
-    result = await AnalysisResult.find_one(
-        AnalysisResult.id == result_id,
-        AnalysisResult.user_id == current_user.id,
-    )
-    if not result:
+    result = await AnalysisResult.get(result_id)
+    if not result or result.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return _to_out(result)
 
@@ -114,6 +159,7 @@ def _to_out(r: AnalysisResult) -> AnalysisOut:
         suggestions=r.suggestions,
         improvement_tips=r.improvement_tips,
         summary=r.summary,
+        highlights=r.highlights or [],
         processing_time_ms=r.processing_time_ms,
         created_at=r.created_at,
     )
@@ -125,7 +171,7 @@ async def run_analysis_task(result_id: str):
         await MatchingService.run(result_id)
     except Exception as e:
         logger.error(f"Analysis failed: {result_id} — {e}")
-        result = await AnalysisResult.find_one(AnalysisResult.id == result_id)
+        result = await AnalysisResult.get(result_id)
         if result:
             result.status = "failed"
             result.error = str(e)
